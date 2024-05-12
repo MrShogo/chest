@@ -1,21 +1,41 @@
 const config = {
-  GOLDS_LOCAL_STORAGE_KEY: 'golds',
-  GOLDS_INDICATOR_ELEMENT_ID: 'golds-indicator',
-  PRICE_INDICATOR_ELEMENT_ID: 'price-indicator',
+  domIds: {
+    GOLDS_INDICATOR: 'golds-indicator',
+    PRICE_INDICATOR: 'price-indicator',
+    RESULT_INDICATOR: 'result-indicator'
+  },
+  localStorage: {
+    GOLDS_KEY: 'golds'
+  },
   DEFAULT_GOLDS: 400,
   GAME_PRICE: 40,
   chestRewards: []
 };
 
-config.chestRewards.push(0, config.GAME_PRICE, config.GAME_PRICE * 2.5);
+config.chestRewards.push(0, config.GAME_PRICE, config.GAME_PRICE * 2);
+
+config.vocab = {
+  exceptions: {
+    notEnoughGolds: "Vous n'avez pas assez de golds pour jouer !"
+  },
+  endOfGameMessages: {
+    lostTheGame: 'Vous avez perdu !',
+    neutral: 'Vous avez récupéré votre mise !',
+    won: (amount) => `Vous avez gagné ${amount - config.GAME_PRICE} golds !`
+  }
+};
 
 Object.freeze(config);
 Object.freeze(config.chestRewards);
 
-const cleanGoldsLocalStorageField = () => localStorage.setItem(config.GOLDS_LOCAL_STORAGE_KEY, config.DEFAULT_GOLDS);
+Object.freeze(config.vocab);
+Object.freeze(config.vocab.exceptions);
+Object.freeze(config.vocab.endOfGameMessages);
+
+const cleanGoldsLocalStorageField = () => localStorage.setItem(config.localStorage.GOLDS_KEY, config.DEFAULT_GOLDS);
 
 function getGolds() {
-  const getMaybeGolds = () => parseInt(localStorage.getItem(config.GOLDS_LOCAL_STORAGE_KEY));
+  const getMaybeGolds = () => parseInt(localStorage.getItem(config.localStorage.GOLDS_KEY));
 
   if (isNaN(getMaybeGolds())) {
     cleanGoldsLocalStorageField();
@@ -25,12 +45,28 @@ function getGolds() {
   return getMaybeGolds();
 }
 
-function updateIndicators() {
+function updateResultIndicator(maybeReward = null) {
+  const resultIndicatorElement = document.getElementById(config.domIds.RESULT_INDICATOR);
+
+  if (maybeReward === null) {
+    resultIndicatorElement.innerText = '';
+    return;
+  }
+
+  const rewardAndVocabAssoc = {
+    0: config.vocab.endOfGameMessages.lostTheGame,
+    [config.GAME_PRICE]: config.vocab.endOfGameMessages.neutral,
+    otherwise: config.vocab.endOfGameMessages.won(maybeReward)
+  };
+
+  resultIndicatorElement.innerText = rewardAndVocabAssoc[maybeReward] ?? rewardAndVocabAssoc.otherwise;
+}
+
+function updateMoneyIndicators() {
   const golds = getGolds();
 
-  const goldsIndicatorElement = document.getElementById(config.GOLDS_INDICATOR_ELEMENT_ID);
-
-  const priceIndicatorElement = document.getElementById(config.PRICE_INDICATOR_ELEMENT_ID);
+  const goldsIndicatorElement = document.getElementById(config.domIds.GOLDS_INDICATOR);
+  const priceIndicatorElement = document.getElementById(config.domIds.PRICE_INDICATOR);
 
   goldsIndicatorElement.innerText = golds;
   priceIndicatorElement.innerText = config.GAME_PRICE;
@@ -39,9 +75,8 @@ function updateIndicators() {
 function reward(amount) {
   const golds = getGolds();
 
-  localStorage.setItem(config.GOLDS_LOCAL_STORAGE_KEY, golds + amount);
-
-  updateIndicators();
+  localStorage.setItem(config.localStorage.GOLDS_KEY, golds + amount);
+  updateMoneyIndicators();
 }
 
 function pay() {
@@ -49,12 +84,11 @@ function pay() {
   const golds = getGolds();
 
   if (golds < amount) {
-    throw new Error('You do not have enough golds!');
+    throw new Error(config.vocab.exceptions.notEnoughGolds);
   }
 
-  localStorage.setItem(config.GOLDS_LOCAL_STORAGE_KEY, golds - amount);
-
-  updateIndicators();
+  localStorage.setItem(config.localStorage.GOLDS_KEY, golds - amount);
+  updateMoneyIndicators();
 }
 
 const getRandomChestReward = () => config.chestRewards[Math.floor(Math.random() * config.chestRewards.length)];
@@ -64,19 +98,16 @@ function hitChest() {
     pay();
     const randomReward = getRandomChestReward();
 
-    if (randomReward !== 0) {
-      reward(randomReward);
-      alert('You got ' + randomReward + ' golds!');
-    } else {
-      alert('You got nothing!');
-    }
+    reward(randomReward);
+    updateResultIndicator(randomReward);
   } catch (error) {
     alert(error.message);
   }
 }
 
 function initialize() {
-  updateIndicators();
+  updateMoneyIndicators();
+  updateResultIndicator();
 }
 
 initialize();
